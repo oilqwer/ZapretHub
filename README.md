@@ -19,10 +19,8 @@
 <br />
 
 <p align="center">
-  <img src="docs/images/main.png" alt="Главный экран Zapret Hub: кнопка обхода, проверка доступности Discord, YouTube, Google и Cloudflare, быстрые настройки" width="100%" />
+  <img src="docs/images/home.png" alt="Главная: кнопка обхода, доступность Discord, YouTube, Google и Cloudflare, быстрые настройки, версия zapret 1.10.4" width="100%" />
 </p>
-
-> Скриншоты в этом файле сделаны на версии 1.2.x. Интерфейс 2.0 сохранил это оформление, но отдельные экраны отличаются — например, «Обновления» и «Telegram» (в 2.0 Telegram-прокси встроен, обновления zapret идут напрямую с GitHub Flowseal). Новые скриншоты будут добавлены позже.
 
 ## Возможности
 
@@ -37,21 +35,23 @@
 
 ## Как это выглядит
 
-**Автоматический подбор стратегий**
+Скриншоты программы Zapret Hub 2.0.2 с zapret 1.10.4. Секрет и ссылка Telegram-прокси на скриншоте скрыты.
 
-<img src="docs/images/strategies.png" alt="Автоматический подбор стратегий: проверка Discord, YouTube, Google и Cloudflare, результаты по каждой стратегии" width="100%" />
+**Стратегии** — автоматический подбор и список всех стратегий с результатами проверок
+
+<img src="docs/images/strategies.png" alt="Стратегии: автоподбор Discord, YouTube, Google и Cloudflare, лучшая стратегия ALT 4, список из 22 стратегий с результатами" width="100%" />
 
 <table>
 <tr>
 <td width="50%" valign="top">
 <strong>Telegram</strong><br />
-Локальный прокси и настройки подключения. Секрет и ссылка на скриншоте скрыты.<br /><br />
-<img src="docs/images/telegram.png" alt="Раздел Telegram: состояние прокси, порт, DC → IP; секрет скрыт" width="100%" />
+Встроенный локальный прокси и настройки подключения.<br /><br />
+<img src="docs/images/telegram.png" alt="Telegram: прокси работает на 127.0.0.1:1443, встроенное ядро, порт, DC → IP; секрет и ссылка скрыты" width="100%" />
 </td>
 <td width="50%" valign="top">
 <strong>AI DNS</strong><br />
-Выбор DNS-серверов и возврат прежних настроек.<br /><br />
-<img src="docs/images/ai-dns.png" alt="Раздел AI DNS: предпочтительный и дополнительный DNS, DNS по протоколу HTTPS" width="100%" />
+Выбор DNS-серверов, DNS по HTTPS и сетевые адаптеры.<br /><br />
+<img src="docs/images/ai-dns.png" alt="AI DNS: предпочтительный и дополнительный DNS, DNS по протоколу HTTPS, выбор сетевых адаптеров" width="100%" />
 </td>
 </tr>
 </table>
@@ -63,26 +63,25 @@
 
 **Фильтры**
 
-<img src="docs/images/filters.png" alt="Фильтры: Game Filter, IPSet, fake-пакеты" width="100%" />
+<img src="docs/images/filters.png" alt="Фильтры: Game Filter, режимы IPSet, fake-пакеты для Discord UDP и Game Filter" width="100%" />
 
 **Свои списки и исключения**
 
-<img src="docs/images/lists.png" alt="Свои домены, исключения и исключённые IP" width="100%" />
+<img src="docs/images/lists.png" alt="Списки: свои домены, исключения и исключённые IP" width="100%" />
 
 **Диагностика**
 
-<img src="docs/images/diagnostics.png" alt="Диагностика: инструменты и журнал" width="100%" />
+<img src="docs/images/diagnostics.png" alt="Диагностика: проверка системы, инструменты и журнал" width="100%" />
 
-**Обновления** (версия 1.2.x; в 2.0 здесь только zapret, Telegram-прокси встроен)
+**Обновления**
 
-<img src="docs/images/updates.png" alt="Раздел обновлений версии 1.2.x" width="100%" />
+<img src="docs/images/updates.png" alt="Обновления: zapret 1.10.4 напрямую с GitHub Flowseal, встроенное ядро Telegram-прокси, автообновление и описание релиза" width="100%" />
 
 **Настройки**
 
-<img src="docs/images/settings.png" alt="Настройки: режим работы, поведение, сведения о программе" width="100%" />
+<img src="docs/images/settings.png" alt="Настройки: режим работы, запуск с Windows, трей, сведения о программе 2.0.2" width="100%" />
 
 </details>
-
 ## AI DNS: результаты тестирования
 
 Проверки проведены вручную на двух компьютерах с версией 1.2.0; результат зависит от сети и условий доступа к сервисам.
