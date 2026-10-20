@@ -1,16 +1,5 @@
 {
-  "components": {
-    "tg-ws-proxy": {
-      "tree_sha256": "743191f3ad255fe6f80551e32f91d3ec54387223aab6c8872354f2ba3253dfe6",
-      "url": "https://api.github.com/repos/Flowseal/tg-ws-proxy/zipball/v1.11.2",
-      "version": "1.11.2"
-    },
-    "zapret": {
-      "sha256": "244314ae1c24538a0d751601da8e0c925c843371eec4456eb15f14c4fd6b7058",
-      "url": "https://github.com/Flowseal/zapret-discord-youtube/releases/download/1.10.3/zapret-discord-youtube-1.10.3.zip",
-      "version": "1.10.3"
-    }
-  },
+  "components": {},
   "schema": 1,
-  "sequence": 1
+  "sequence": 2
 }
