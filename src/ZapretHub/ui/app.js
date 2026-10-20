@@ -640,6 +640,9 @@ const actions = {
     await defRefresh();
   },
   async 'def-remove'(btn) {
+    const paths = defSt?.existing || [];
+    if (!paths.length) return;
+    if (!(await confirmBox(`Из исключений Защитника будет удалено только: ${paths.join(', ')}. Остальные исключения не изменятся. Продолжить?`))) return;
     const r = await withLoading(btn, () => call('defender_remove', true));
     if (r.ok) toast('Исключение удалено — Защитник снова проверяет папку', 'ok');
     await defRefresh();
