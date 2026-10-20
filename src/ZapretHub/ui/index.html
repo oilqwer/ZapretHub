@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zapret Hub</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="titlebar pywebview-drag-region" id="titlebar">
+  <div class="brand pywebview-drag-region"><span class="brand-logo"><i data-icon="power"></i></span><span>Zapret<b>Hub</b></span></div>
+  <div class="tb-pill pywebview-drag-region" id="tbPill"><span class="dot"></span><span id="tbText">Загрузка…</span></div>
+  <div class="win">
+    <button data-act="win-min" title="Свернуть"><svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg></button>
+    <button data-act="win-max" title="Развернуть"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2"/></svg></button>
+    <button data-act="win-close" class="close" title="Закрыть"><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg></button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="side">
+    <button class="nav active" data-page="home"><i data-icon="home"></i><span>Главная</span></button>
+    <button class="nav" data-page="strategies"><i data-icon="layers"></i><span>Стратегии</span></button>
+    <button class="nav" data-page="telegram"><i data-icon="send"></i><span>Telegram</span><em class="nav-dot hidden" id="tgDot"></em></button>
+    <button class="nav" data-page="aidns"><i data-icon="bot"></i><span>AI DNS</span><em class="nav-dot ai hidden" id="aiDot"></em></button>
+    <button class="nav" data-page="filters"><i data-icon="sliders"></i><span>Фильтры</span></button>
+    <button class="nav" data-page="lists"><i data-icon="list"></i><span>Списки</span></button>
+    <button class="nav" data-page="diag"><i data-icon="activity"></i><span>Диагностика</span></button>
+    <button class="nav" data-page="updates"><i data-icon="download"></i><span>Обновления</span><em class="nav-badge hidden" id="updBadge">new</em></button>
+    <button class="nav" data-page="settings"><i data-icon="gear"></i><span>Настройки</span></button>
+    <div class="side-foot">
+      <div class="engine-chip"><span class="lbl">zapret</span><b id="sideVer">—</b></div>
+      <div class="side-credit">Flowseal · bol-van</div>
+    </div>
+  </nav>
+
+  <main class="main" id="main">
+
+    <!-- ГЛАВНАЯ -->
+    <section class="page active" id="page-home">
+      <div class="home">
+        <div class="card hero">
+          <div class="hero-top">
+            <span class="eyebrow">Обход блокировок</span>
+            <span class="mode-chip" id="modeChip"></span>
+          </div>
+          <button class="orb" id="orb" data-act="toggle" aria-label="Включить или выключить обход">
+            <span class="orb-glow"></span>
+            <span class="orb-ripple"></span><span class="orb-ripple"></span><span class="orb-ripple"></span>
+            <span class="orb-ring"></span>
+            <span class="orb-core"><i data-icon="power"></i></span>
+          </button>
+          <div class="state">
+            <h2 id="stateTitle">Обход выключен</h2>
+            <p id="stateSub">Нажмите на кнопку, чтобы включить</p>
+          </div>
+          <div class="picker" id="picker">
+            <button class="picker-btn" data-act="picker">
+              <span class="picker-label">Стратегия</span>
+              <span class="picker-value" id="pickerValue">—</span>
+              <span class="score-pill hidden" id="pickerScore"></span>
+              <i data-icon="chevron" class="picker-chev"></i>
+            </button>
+            <div class="picker-menu" id="pickerMenu"></div>
+          </div>
+          <button class="btn ghost" data-act="go-autoselect"><i data-icon="sparkles"></i>Подобрать автоматически</button>
+        </div>
+
+        <div class="col">
+          <div class="card">
+            <div class="card-head">
+              <h3>Доступность</h3>
+              <button class="btn sm" data-act="quick-check" id="qcBtn"><i data-icon="refresh"></i>Проверить</button>
+            </div>
+            <div class="svc-list" id="svcList"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Быстрые настройки</h3></div>
+            <div class="quick" id="quickTiles"></div>
+          </div>
+          <div class="card upd-mini" id="updMini"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- СТРАТЕГИИ -->
+    <section class="page" id="page-strategies">
+      <div class="page-head">
+        <div>
+          <h1>Стратегии</h1>
+          <p>Каждый провайдер блокирует по-своему. Автоподбор по очереди запустит стратегии и измерит, какая открывает больше сервисов именно у вас.</p>
+        </div>
+      </div>
+      <div class="card auto">
+        <div class="auto-grid">
+          <div>
+            <div class="field-label">Что проверять</div>
+            <div class="chips" id="groupChips"></div>
+          </div>
+          <div>
+            <div class="field-label">Режим</div>
+            <div class="seg" id="testMode">
+              <button data-val="quick" class="on" title="Остановится на первой стратегии, которая открыла всё">Быстрый</button>
+              <button data-val="full" title="Проверит все стратегии и выберет лучшую">Полный</button>
+            </div>
+            <div class="muted xs seg-hint" id="testModeHint">Остановится на первой стратегии, которая открыла всё · ~30 сек</div>
+          </div>
+          <label class="check"><input type="checkbox" id="autoApply" checked><span></span>Сразу включить лучшую</label>
+          <button class="btn primary lg" data-act="test-start" id="testBtn"><i data-icon="sparkles"></i>Запустить подбор</button>
+        </div>
+        <div class="test-live hidden" id="testLive">
+          <div class="test-meta"><span id="testNow">Подготовка…</span><span id="testCount"></span></div>
+          <div class="bar"><span id="testBar"></span></div>
+          <div class="test-base" id="testBase"></div>
+        </div>
+      </div>
+      <div class="grid-head"><h3>Все стратегии</h3><span class="muted sm" id="stratCount"></span></div>
+      <div class="strat-grid" id="stratGrid"></div>
+    </section>
+
+    <!-- TELEGRAM -->
+    <section class="page" id="page-telegram">
+      <div class="page-head">
+        <div>
+          <h1>Telegram</h1>
+          <p>Локальный MTProto-прокси для Telegram Desktop с удобным подключением.</p>
+        </div>
+      </div>
+      <div class="card tg-hero" id="tgHero">
+        <span class="tg-logo"><i data-icon="send"></i></span>
+        <div class="tg-hero-text">
+          <h2 id="tgTitle">Прокси выключен</h2>
+          <p id="tgSub"></p>
+        </div>
+        <label class="switch big" title="Включить или выключить прокси"><input type="checkbox" id="tgSwitch"><span></span></label>
+      </div>
+      <div class="cards-2 mt">
+        <div class="card">
+          <h3>Подключить Telegram Desktop</h3>
+          <ol class="tg-steps">
+            <li>Включите прокси переключателем выше</li>
+            <li>Нажмите «Открыть в Telegram» и подтвердите добавление прокси</li>
+            <li>Готово — Telegram будет подключаться через прокси сам</li>
+          </ol>
+          <div class="link-box"><code id="tgLink">—</code></div>
+          <div class="row-end">
+            <button class="btn" data-act="tg-copy"><i data-icon="copy"></i>Скопировать</button>
+            <button class="btn primary" data-act="tg-open" id="tgOpenBtn"><i data-icon="send"></i>Открыть в Telegram</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Настройки прокси</h3>
+          <div class="fields">
+            <label class="field"><span>Порт</span><input id="tgPort" inputmode="numeric" spellcheck="false" autocomplete="off"></label>
+            <label class="field"><span>Секрет</span>
+              <span class="secret-row"><input id="tgSecret" readonly spellcheck="false"><button class="btn sm" data-act="tg-secret" title="Создать новый секрет"><i data-icon="key"></i></button></span>
+            </label>
+          </div>
+          <label class="field mt-sm"><span>DC → IP (по одному в строке)</span><textarea id="tgDc" class="ta-sm" spellcheck="false"></textarea></label>
+          <div class="opt"><div><b>Запасной путь через Cloudflare</b><span>Если WebSocket к Telegram недоступен</span></div><label class="switch"><input type="checkbox" id="tgCf"><span></span></label></div>
+          <p class="muted xs">Не грузятся фото и видео? Оставьте в DC → IP только <code>4:149.154.167.220</code>, а если не поможет — очистите поле.</p>
+          <div class="row-end"><button class="btn primary" data-act="tg-save"><i data-icon="check"></i>Сохранить</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI DNS -->
+    <section class="page" id="page-aidns">
+      <div class="page-head">
+        <div>
+          <h1>AI DNS</h1>
+          <p>Свои DNS-серверы для доступа к ИИ-сервисам. Меняет DNS выбранных сетевых адаптеров, а при выключении возвращает прежние.</p>
+        </div>
+      </div>
+      <div class="card tg-hero ai" id="aiHero">
+        <span class="tg-logo"><i data-icon="bot"></i></span>
+        <div class="tg-hero-text">
+          <h2 id="aiTitle">AI DNS выключен</h2>
+          <p id="aiSub"></p>
+          <div class="ai-services" id="aiServices"></div>
+        </div>
+        <label class="switch big" title="Включить или выключить AI DNS"><input type="checkbox" id="aiSwitch"><span></span></label>
+      </div>
+      <div class="notice hidden" id="aiNotice"><i data-icon="info"></i><span></span></div>
+      <div class="cards-2 mt" id="aiEditors"></div>
+      <div class="card mt">
+        <div class="card-head"><h3>Сетевые адаптеры</h3><span class="muted xs">По умолчанию — физические (Wi-Fi и Ethernet)</span></div>
+        <div class="ai-adapters" id="aiAdapters"><div class="empty">Загружаю список адаптеров…</div></div>
+      </div>
+      <div class="row-end ai-actions">
+        <button class="btn" data-act="ai-recommended"><i data-icon="sparkles"></i>Рекомендуемые</button>
+        <button class="btn" data-act="ai-check" id="aiCheckBtn"><i data-icon="activity"></i>Проверить серверы</button>
+        <button class="btn primary" data-act="ai-save"><i data-icon="check"></i>Сохранить и применить</button>
+      </div>
+    </section>
+
+    <!-- ФИЛЬТРЫ -->
+    <section class="page" id="page-filters">
+      <div class="page-head">
+        <div>
+          <h1>Фильтры</h1>
+          <p>Изменения применяются сразу: если обход включён, он перезапустится сам.</p>
+        </div>
+      </div>
+      <div class="cards-2">
+        <div class="card">
+          <div class="card-title"><span class="ttl-ic" style="--c:#a78bfa"><i data-icon="gamepad"></i></span><h3>Game Filter</h3></div>
+          <p class="muted">Расширяет обход на порты выше 1023 — для игр и программ на нестандартных портах. Без необходимости держите выключенным.</p>
+          <div class="seg wide" id="gfMode">
+            <button data-val="disabled">Выкл</button><button data-val="all">TCP + UDP</button><button data-val="tcp">TCP</button><button data-val="udp">UDP</button>
+          </div>
+          <div class="fields">
+            <label class="field"><span>TCP-порты</span><input id="gfTcp" spellcheck="false" autocomplete="off"></label>
+            <label class="field"><span>UDP-порты</span><input id="gfUdp" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <div class="row-end"><span class="muted xs">Например: 1024-1934,1936-65535</span><button class="btn" data-act="gf-save">Сохранить порты</button></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="ttl-ic" style="--c:#22d3ee"><i data-icon="globe"></i></span><h3>IPSet</h3></div>
+          <p class="muted" id="ipsetDesc"></p>
+          <div class="seg wide" id="ipsetMode">
+            <button data-val="none">Выкл</button><button data-val="loaded">По списку</button><button data-val="any">Все IP</button>
+          </div>
+          <div class="row-end"><span class="muted xs" id="ipsetInfo"></span><button class="btn" data-act="ipset-update" id="ipsetBtn"><i data-icon="download"></i>Обновить список IP</button></div>
+        </div>
+        <div class="card span-2">
+          <div class="card-title"><span class="ttl-ic" style="--c:#f472b6"><i data-icon="bolt"></i></span><h3>Fake-пакеты</h3></div>
+          <p class="muted">Какие «подставные» пакеты отправлять для UDP Discord и Game Filter. Меняйте, если не подключаются голосовые каналы или игры.</p>
+          <div class="fields">
+            <label class="field"><span>Discord UDP</span><select id="fakeDiscord" data-fake="discord"></select></label>
+            <label class="field"><span>Game Filter UDP</span><select id="fakeGame" data-fake="game"></select></label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- СПИСКИ -->
+    <section class="page" id="page-lists">
+      <div class="page-head">
+        <div>
+          <h1>Списки</h1>
+          <p>Добавляйте свои сайты в обход или в исключения — без поиска файлов и блокнота.</p>
+        </div>
+      </div>
+      <div class="card list-card">
+        <div class="tabs" id="listTabs">
+          <button data-list="general" class="on">Свои домены</button>
+          <button data-list="exclude">Исключения</button>
+          <button data-list="ipset_exclude">Исключённые IP</button>
+        </div>
+        <p class="muted" id="listHint"></p>
+        <div class="add-row">
+          <input id="listAdd" spellcheck="false" autocomplete="off">
+          <button class="btn" data-act="list-add"><i data-icon="plus"></i>Добавить</button>
+        </div>
+        <textarea id="listText" spellcheck="false"></textarea>
+        <div class="row-end"><span class="muted xs" id="listCount"></span><button class="btn primary" data-act="list-save"><i data-icon="check"></i>Сохранить и применить</button></div>
+      </div>
+    </section>
+
+    <!-- ДИАГНОСТИКА -->
+    <section class="page" id="page-diag">
+      <div class="page-head">
+        <div>
+          <h1>Диагностика</h1>
+          <p>Ищет частые причины, по которым обход не работает: конфликтующие программы, прокси, DNS, проблемы с драйвером.</p>
+        </div>
+        <button class="btn primary" data-act="diag-run" id="diagBtn"><i data-icon="activity"></i>Проверить систему</button>
+      </div>
+      <div class="card"><div class="diag-list" id="diagList"><div class="empty"><i data-icon="shield"></i>Нажмите «Проверить систему» — это займёт пару секунд</div></div></div>
+      <div class="cards-2 mt">
+        <div class="card tools">
+          <h3>Инструменты</h3>
+          <button class="tool" data-fix="clear_discord_cache" data-confirm="Discord будет закрыт, а его кэш удалён. Продолжить?"><span class="ttl-ic" style="--c:#8b9cff"><i data-icon="trash"></i></span><span><b>Очистить кэш Discord</b><small>Помогает при бесконечной загрузке и серых аватарках</small></span></button>
+          <button class="tool" disabled title="Временно недоступно: подписанный список записей ещё не опубликован" data-fix="update_hosts" data-confirm="В системный файл hosts будут добавлены записи из репозитория Flowseal (копия старого сохранится). Продолжить?"><span class="ttl-ic" style="--c:#22d3ee"><i data-icon="file"></i></span><span><b>Обновить hosts</b><small>Временно недоступно: подписанный список записей ещё не опубликован</small></span></button>
+          <button class="tool" data-act="def-open"><span class="ttl-ic" style="--c:#34f5c5"><i data-icon="shield"></i></span><span><b>Исключение в Защитнике</b><small id="defToolState">Само не добавляется — откроется окно с предупреждением</small></span></button>
+          <button class="tool" data-fix="open_engine"><span class="ttl-ic" style="--c:#fbbf24"><i data-icon="folder"></i></span><span><b>Открыть папку zapret</b><small>C:\ProgramData\ZapretHub\engine</small></span></button>
+        </div>
+        <div class="card logcard">
+          <div class="card-head"><h3>Журнал</h3><button class="btn sm" data-act="open-log">Открыть файл</button></div>
+          <div class="log" id="logView"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ОБНОВЛЕНИЯ -->
+    <section class="page" id="page-updates">
+      <div class="page-head">
+        <div>
+          <h1>Обновления</h1>
+          <p>Zapret Hub проверяет релизы напрямую на GitHub Flowseal, скачивает официальный архив и сверяет его SHA-256 с данными GitHub (подпись разработчика Flowseal не проверяется). Ваши списки и настройки переносятся, прежний движок сохраняется как резервная копия.</p>
+        </div>
+      </div>
+      <div class="card upd-hero">
+        <div class="versions">
+          <div class="ver"><span class="field-label">Установлено</span><b id="vLocal">—</b></div>
+          <span class="ver-arrow"><i data-icon="arrow"></i></span>
+          <div class="ver"><span class="field-label">Последняя</span><b id="vRemote">—</b></div>
+        </div>
+        <div class="upd-side">
+          <div class="upd-status" id="updStatus"></div>
+          <div class="bar hidden" id="updBarWrap"><span id="updBar"></span></div>
+          <div class="row-end">
+            <button class="btn" data-act="upd-check" id="updCheckBtn"><i data-icon="refresh"></i>Проверить</button>
+            <button class="btn primary" data-act="upd-install" id="updInstall"><i data-icon="download"></i>Обновить</button>
+          </div>
+        </div>
+      </div>
+      <div class="card comp mt" id="updTg"></div>
+      <div class="cards-2 mt">
+        <div class="card">
+          <h3>Автообновление</h3>
+          <div class="opt"><div><b>Обновлять автоматически</b><span>Проверять релизы Flowseal на GitHub в фоне и тихо ставить новые версии zapret</span></div><label class="switch"><input type="checkbox" data-opt="auto_update"><span></span></label></div>
+          <div class="opt"><div><b>Частота проверки</b><span>Как часто смотреть, вышла ли новая версия</span></div>
+            <select data-opt="update_interval_h" class="select-sm"><option value="1">каждый час</option><option value="6">каждые 6 часов</option><option value="12">каждые 12 часов</option><option value="24">раз в сутки</option></select></div>
+        </div>
+        <div class="card"><h3>Что нового</h3><div class="notes" id="relNotes"></div></div>
+      </div>
+    </section>
+
+    <!-- НАСТРОЙКИ -->
+    <section class="page" id="page-settings">
+      <div class="page-head"><div><h1>Настройки</h1><p>Как и когда должен работать обход.</p></div></div>
+      <div class="card">
+        <h3>Режим работы</h3>
+        <div class="modes" id="runMode">
+          <button class="mode" data-val="app"><span class="ttl-ic" style="--c:#a78bfa"><i data-icon="window"></i></span><b>Через приложение</b><small>Обход работает, пока запущен Zapret Hub — в том числе свёрнутый в трей</small></button>
+          <button class="mode" data-val="service"><span class="ttl-ic" style="--c:#34f5c5"><i data-icon="shield"></i></span><b>Служба Windows</b><small>Работает всегда и стартует вместе с системой, даже если приложение закрыто</small></button>
+        </div>
+      </div>
+      <div class="card mt">
+        <h3>Поведение</h3>
+        <div class="opt"><div><b>Запускать вместе с Windows</b><span>Zapret Hub стартует при входе в систему без запроса UAC</span></div><label class="switch"><input type="checkbox" data-opt="autostart"><span></span></label></div>
+        <div class="opt"><div><b>Запускать свёрнутым</b><span>При автозапуске сразу прятаться в трей</span></div><label class="switch"><input type="checkbox" data-opt="start_minimized"><span></span></label></div>
+        <div class="opt"><div><b>Сворачивать в трей при закрытии</b><span>Крестик прячет окно, а не выключает обход</span></div><label class="switch"><input type="checkbox" data-opt="close_to_tray"><span></span></label></div>
+        <div class="opt"><div><b>Включать обход при запуске</b><span>Если в прошлый раз обход был включён — включить снова</span></div><label class="switch"><input type="checkbox" data-opt="autoconnect"><span></span></label></div>
+      </div>
+      <div class="card about mt">
+        <span class="about-logo"><i data-icon="power"></i></span>
+        <div class="about-text">
+          <b>Zapret Hub <span id="appVer"></span></b>
+          <span class="about-line">Разработчик: <button class="about-author" data-link="author">Ebowsky</button> · Интерфейс и интеграция компонентов</span>
+          <span class="about-line">Основано на zapret-discord-youtube от Flowseal и zapret от bol-van. Движки и стратегии используются без изменений</span>
+        </div>
+        <div class="about-links">
+          <button class="btn sm" data-link="flowseal"><i data-icon="external"></i>Flowseal</button>
+          <button class="btn sm" data-link="zapret"><i data-icon="external"></i>bol-van/zapret</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<!-- Края для изменения размера окна без системной рамки -->
+<div class="rz n" data-rz="n"></div><div class="rz s" data-rz="s"></div>
+<div class="rz e" data-rz="e"></div><div class="rz w" data-rz="w"></div>
+<div class="rz ne" data-rz="ne"></div><div class="rz nw" data-rz="nw"></div>
+<div class="rz se" data-rz="se"></div><div class="rz sw" data-rz="sw"></div>
+
+<div class="overlay hidden" id="defDlg">
+  <div class="dialog">
+    <h3>Исключение Защитника Windows</h3>
+    <p>Защитник перестанет проверять папку <b id="defPath"></b> (winws.exe и драйвер WinDivert). Это нужно только если антивирус удаляет эти файлы. <b>Любой вредоносный файл, попавший в эту папку, тоже не будет проверен.</b> По умолчанию Zapret Hub ничего не добавляет — исключение создаётся только после вашего нажатия на «Добавить».</p>
+    <p class="muted" id="defState">Проверяю…</p>
+    <div class="row-end"><button class="btn" id="defCancel" data-act="def-cancel">Отмена</button><button class="btn danger hidden" id="defRemove" data-act="def-remove">Удалить исключение</button><button class="btn primary" id="defAdd" data-act="def-add" disabled>Добавить исключение</button></div>
+  </div>
+</div><div class="overlay hidden" id="confirm">
+  <div class="dialog">
+    <p id="confirmText"></p>
+    <div class="row-end"><button class="btn" data-confirm-answer="0">Отмена</button><button class="btn primary" data-confirm-answer="1">Продолжить</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="onboard">
+  <div class="ob">
+    <div class="ob-logo"><i data-icon="power"></i></div>
+    <h1>Добро пожаловать в Zapret&nbsp;Hub</h1>
+    <p>Скачаем свежий zapret от Flowseal и подберём стратегию под вашего провайдера. Это займёт пару минут, а возиться с файлами и консолью не придётся.</p>
+    <ol class="ob-steps" id="obSteps">
+      <li data-step="download"><span class="ob-n">1</span>Скачать zapret с GitHub</li>
+      <li data-step="test"><span class="ob-n">2</span>Подобрать лучшую стратегию</li>
+      <li data-step="done"><span class="ob-n">3</span>Включить обход</li>
+    </ol>
+    <div class="bar hidden" id="obBarWrap"><span id="obBar"></span></div>
+    <div class="ob-status" id="obStatus">&nbsp;</div>
+    <button class="btn primary lg" data-act="ob-start" id="obBtn"><i data-icon="sparkles"></i>Начать</button>
+  </div>
+</div>
+
+<script src="icons.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
