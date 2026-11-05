@@ -25,6 +25,14 @@ public sealed class AiCfg
     public List<string>? adapters { get; set; }
     public Dictionary<string, string> backup { get; set; } = new();
     public bool imported { get; set; }
+    public bool autoSwitch { get; set; } = true;
+    public string mode { get; set; } = "";
+    public string selectionMode { get; set; } = "";
+    public string manualChatgpt { get; set; } = "dnsai";
+    public string manualGemini { get; set; } = "dnsai";
+    public string fallbackChatgpt { get; set; } = "";
+    public string fallbackGemini { get; set; } = "";
+    public List<AiDnsEntry> customServers { get; set; } = new();
 }
 
 public sealed class AdapterInfo
@@ -43,11 +51,16 @@ public sealed record ProbeResult(int level, string text);
 public static class AiDns
 {
     public const string ProbeName = "api.openai.com";
-    public const int DohAttempts = 3;
     public static readonly string[] Services = { "ChatGPT", "Gemini", "Claude", "Grok", "Copilot", "Perplexity" };
 
     public static DnsServer RecPrimary() => new() { address = "31.31.207.68", doh = true, template = "https://d.webshiftvpn.ru/dns-query", fallback = true };
     public static DnsServer RecAlternate() => new() { address = "159.194.200.33", doh = true, template = "https://geohide.ru/dns-query", fallback = true };
+    public static DnsServer DnsAiPrimary() => new() { address = "194.87.196.13", doh = true, template = "https://dns.dns-ai.ru/dns-query", fallback = false };
+    public static DnsServer DnsAiAlternate() => new() { address = "45.151.102.219", doh = true, template = "https://dns.dns-ai.ru/dns-query", fallback = false };
+    public static DnsServer MalwPrimary() => new() { address = "179.254.166.171", doh = true, template = "https://dns.malw.link/dns-query", fallback = false };
+    // Provider's published Smart DNS profile, not the ordinary Cloudflare resolver.
+    public static DnsServer MalwGateway() => new() { address = "162.159.36.5", doh = true, template = "https://5u35p8m9i7.cloudflare-gateway.com/dns-query", fallback = false };
+    public static DnsServer BezmezhauPrimary() => new() { address = "181.215.40.49", doh = true, template = "https://dns.bezmezhau.com/dns-query", fallback = false };
 
     public static readonly string StandaloneIni = Path.Combine(Environment.GetEnvironmentVariable("APPDATA") ?? "", "AI DNS", "settings.ini");
 
@@ -224,48 +237,47 @@ public static class AiDns
         catch { return false; }
     }
 
-    private static bool DohOk(string server, string template)
+    private static string? QueryDohA(string server, string template, string name)
     {
-        try
+        ushort qid = (ushort)Random.Shared.Next(0x10000);
+        var u = new Uri(template);
+        using var handler = new SocketsHttpHandler
         {
-            var u = new Uri(template);
-            string dns = Convert.ToBase64String(Query("example.com", 0)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-            string path = (u.AbsolutePath.Length > 0 ? u.AbsolutePath : "/") + (u.Query.Length > 1 ? u.Query + "&" : "?") + "dns=" + dns;
-            using var tcp = new TcpClient();
-            if (!tcp.ConnectAsync(server, u.Port).Wait(5000)) return false;
-            using var ssl = new SslStream(tcp.GetStream());
-            ssl.ReadTimeout = ssl.WriteTimeout = 6000;
-            ssl.AuthenticateAsClient(u.Host);
-            var req = Encoding.ASCII.GetBytes($"GET {path} HTTP/1.1\r\nHost: {u.Host}\r\nAccept: application/dns-message\r\nConnection: close\r\n\r\n");
-            ssl.Write(req); ssl.Flush();
-            var buf = new byte[64];
-            int n = ssl.Read(buf, 0, buf.Length);
-            return Encoding.ASCII.GetString(buf, 0, n).StartsWith("HTTP/1.1 200");
-        }
-        catch { return false; }
+            UseProxy = false,
+            ConnectCallback = async (context, ct) =>
+            {
+                var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                try { await socket.ConnectAsync(IPAddress.Parse(server), context.DnsEndPoint.Port, ct); return new NetworkStream(socket, true); }
+                catch { socket.Dispose(); throw; }
+            }
+        };
+        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(8) };
+        using var content = new ByteArrayContent(Query(name, qid));
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/dns-message");
+        using var request = new HttpRequestMessage(HttpMethod.Post, u) { Content = content };
+        request.Headers.Accept.ParseAdd("application/dns-message");
+        using var response = http.SendAsync(request).GetAwaiter().GetResult();
+        response.EnsureSuccessStatusCode();
+        if (!string.Equals(response.Content.Headers.ContentType?.MediaType, "application/dns-message", StringComparison.OrdinalIgnoreCase)) return null;
+        var bytes = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        return FirstA(bytes, bytes.Length, qid);
     }
 
     public static ProbeResult Check(DnsServer server)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        string? proxy;
-        try { proxy = QueryA(server.address, ProbeName); }
-        catch { return new(2, "Не отвечает на DNS-запросы"); }
-        long dnsMs = sw.ElapsedMilliseconds;
-        if (proxy is null) return new(2, "Не дал адрес для ChatGPT");
-        if (proxy == "0.0.0.0") return new(2, "Блокирует ИИ-сервисы (отдаёт 0.0.0.0)");
-        bool proxyOk = TlsOk(proxy, ProbeName);
-        string text = $"DNS {dnsMs} мс · прокси {(proxyOk ? "работает" : "не отвечает")}";
-        int level = proxyOk ? 0 : 2;
-        if (server.doh)
+        using var exchange = new DnsExchange(server);
+        var tasks = new[] { ("ChatGPT", "chatgpt.com"), ("Gemini", "gemini.google.com") }.Select(async item =>
         {
-            var tasks = Enumerable.Range(0, DohAttempts).Select(_ => Task.Run(() => DohOk(server.address, server.template))).ToArray();
-            int ok = tasks.Count(t => t.GetAwaiter().GetResult());
-            text += $" · DoH {ok} из {DohAttempts}";
-            if (ok < DohAttempts && level == 0) level = 1;
-            if (ok < DohAttempts && !server.fallback) text += " — включите возврат к открытому тексту";
-        }
-        return new(level, text);
+            try
+            {
+                await AiServiceProbe.Check(item.Item2, exchange, CancellationToken.None);
+                return new ProbeResult(1, item.Item1 + ": DNS/HTTPS доступны; доступ в приложении НЕ ПРОВЕРЕН");
+            }
+            catch (OperationCanceledException) { return new ProbeResult(2, item.Item1 + ": время ожидания истекло"); }
+            catch (Exception e) { return new ProbeResult(2, item.Item1 + ": " + (e is AiProbeFailure typed ? "[" + typed.Kind + "] " : "") + e.Message); }
+        }).ToArray();
+        var results = Task.WhenAll(tasks).GetAwaiter().GetResult();
+        return new(results.Max(x => x.level), string.Join(" · ", results.Select(x => x.text)) + (exchange.HadPlaintextFallback ? " · использован незашифрованный UDP fallback" : "") + " · аккаунт не проверен");
     }
 
     // ---------- настройки ----------
@@ -276,11 +288,15 @@ public static class AiDns
         if (a.Length == 0 && optional) return;
         if (!(IPAddress.TryParse(a, out var ip) && ip.AddressFamily == AddressFamily.InterNetwork && a.Count(c => c == '.') == 3))
             throw new ArgumentException($"Неверный IP-адрес {name} (нужен IPv4, например 31.31.207.68)");
-        if (s.doh && !s.template.Trim().StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException($"Шаблон {name} должен начинаться с https://");
+        if (IPAddress.IsLoopback(ip) || ip.Equals(IPAddress.Any) || ip.GetAddressBytes()[0] >= 224)
+            throw new ArgumentException($"Недопустимый IP-адрес {name}");
+        if ((a == "194.87.196.13" || a == "45.151.102.219") && (!s.doh || s.fallback))
+            throw new ArgumentException("DNS-AI работает только через DoH: включите DNS по HTTPS и отключите возврат к открытому тексту");
+        if (s.doh && (!Uri.TryCreate(s.template.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.UserInfo.Length > 0 || uri.Fragment.Length > 0 || s.template.IndexOfAny(new[] { '{', '}' }) >= 0))
+            throw new ArgumentException($"Для {name} нужен полный адрес DoH https://сервер/dns-query без логина и переменных");
     }
 
-    public static AiCfg DefaultConfig() => new() { primary = RecPrimary(), alternate = RecAlternate() };
+    public static AiCfg DefaultConfig() => new() { primary = DnsAiPrimary(), alternate = DnsAiAlternate() };
 
     public static AiCfg? ImportStandalone()
     {
@@ -310,6 +326,21 @@ public static class AiDns
 
     public static List<DnsServer> ServersOf(AiCfg cfg) =>
         new[] { cfg.primary }.Concat(cfg.alternate.address.Trim().Length > 0 ? new[] { cfg.alternate } : Array.Empty<DnsServer>()).ToList();
+
+    public static List<DnsServer> Candidates(AiCfg cfg)
+    {
+        if (cfg.selectionMode.Length > 0) return AiDnsCatalog.Candidates(cfg);
+        var servers = ServersOf(cfg);
+        if (cfg.autoSwitch) servers.AddRange(new[] { DnsAiPrimary(), DnsAiAlternate(), RecPrimary(), RecAlternate(), MalwPrimary(), MalwGateway(), BezmezhauPrimary() });
+        foreach (var s in servers) Validate(s, false, "AI DNS");
+        return servers.DistinctBy(s => s.address.Trim() + "|" + s.doh + "|" + s.template.Trim() + "|" + s.fallback).ToList();
+    }
+
+    public static bool MatchesServers(string current, IEnumerable<DnsServer> servers)
+    {
+        var actual = current.Split(new[] { ',', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        return actual.SequenceEqual(servers.Select(s => s.address.Trim()), StringComparer.OrdinalIgnoreCase);
+    }
 
     public static void ApplyToSelected(AiCfg cfg, IEnumerable<string> selected)
     {

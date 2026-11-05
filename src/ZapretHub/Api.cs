@@ -35,6 +35,13 @@ public sealed class Api
     private readonly Settings _s;
     private readonly Engine _e;
     private readonly TgProxy _tg = new();
+    private readonly AiDnsRuntime _ai = new();
+    private readonly object _aiLock = new();
+    private bool _aiInitialized;
+    private string _aiError = "";
+    private readonly AiDnsMonitor _aiMonitor = new();
+    private CancellationTokenSource? _aiStartingCancel;
+    private volatile bool _aiStarting;
     private readonly Action<string, object?> _pushRaw;
     public IWindow? Window;
 
@@ -96,6 +103,12 @@ public sealed class Api
             case "aidns_toggle": return AiToggle(B(a, 0));
             case "aidns_check": return AiCheck(a[0]!, a[1]!);
             case "aidns_recommended": return new { primary = AiDns.RecPrimary(), alternate = AiDns.RecAlternate() };
+            case "aidns_dnsai": return new { primary = AiDns.DnsAiPrimary(), alternate = AiDns.DnsAiAlternate() };
+            case "aidns_panel": return AiPanel();
+            case "aidns_panel_save": return AiSave(JsonSerializer.SerializeToNode(AiCfgGet().primary)!, JsonSerializer.SerializeToNode(AiCfgGet().alternate)!, a[0]!);
+            case "aidns_probe": return AiPanelProbe(A(a, 0));
+            case "aidns_cancel": AiCancel(); return null;
+            case "aidns_report": return new { report = _aiMonitor.Export(_ai.Running && !_aiStarting ? _ai.State : null, AiDnsCatalog.Normalize(AiCfgGet())) };
             case "start_test": return StartTest(a[0]!.AsArray().Select(x => x!.GetValue<string>()).ToList(), B(a, 1), B(a, 2));
             case "cancel_test": _cancel.Cancel(); return null;
             case "quick_check": return QuickCheck();
@@ -479,12 +492,33 @@ public sealed class Api
 
     private object AiState()
     {
-        var cfg = AiCfgGet();
+        var cfg = AiDnsCatalog.Normalize(AiCfgGet());
         return new
         {
-            cfg.enabled, cfg.primary, cfg.alternate, cfg.imported,
+            cfg.enabled, cfg.primary, cfg.alternate, cfg.imported, cfg.autoSwitch, cfg.selectionMode, starting = _aiStarting,
+            running = _ai.Running, active = _ai.State, error = _aiError, mode = "split",
             standalone = File.Exists(AiDns.StandaloneIni), services = AiDns.Services,
         };
+    }
+
+    private object AiPanel()
+    {
+        var cfg = AiDnsCatalog.Normalize(AiCfgGet());
+        return new { cfg, entries = AiDnsCatalog.Entries(cfg), probes = _aiMonitor.State, active = _ai.State, running = _ai.Running && !_aiStarting, starting = _aiStarting, error = _aiError, network = AiNetwork.Snapshot(), engine = _e.Status() };
+    }
+    private object? AiPanelProbe(string id)
+    {
+        var entries = AiDnsCatalog.Entries(AiDnsCatalog.Normalize(AiCfgGet()));
+        var selected = entries.Where(e => id.Length == 0 || e.id == id).SelectMany(e => e.servers).DistinctBy(AiDnsCatalog.Key).ToArray();
+        if (selected.Length == 0) throw new ArgumentException("DNS не найден");
+        _aiMonitor.Start(selected); return null;
+    }
+    private void AiCancel() { _aiMonitor.Cancel(); try { _aiStartingCancel?.Cancel(); } catch (ObjectDisposedException) { } }
+    private void AiStart(AiCfg cfg)
+    {
+        _aiStartingCancel?.Dispose(); _aiStartingCancel = new(); _aiStarting = true;
+        try { _ai.Start(AiDns.Candidates(cfg), AiDnsCatalog.Plan(cfg), _aiMonitor, _aiStartingCancel.Token); }
+        finally { _aiStarting = false; }
     }
 
     private static DnsServer AiServer(JsonNode n) => new()
@@ -493,22 +527,22 @@ public sealed class Api
         template = (n["template"]?.ToString() ?? "").Trim(), fallback = n["fallback"]?.GetValue<bool>() ?? false,
     };
 
-    /// <summary>Возвращает прежние DNS; адаптеры, которых больше нет (USB-модем, VPN), просто забываем.</summary>
+    /// <summary>Возвращает прежние DNS. Недоступные адаптеры сохраняем для повторной попытки.</summary>
     private static List<string> AiRestore(AiCfg cfg, IEnumerable<string> ids)
     {
         var failed = new List<string>();
-        HashSet<string>? present = null;
         foreach (var id in ids.ToList())
         {
             try
             {
-                AiDns.Restore(id, cfg.backup[id]);
+                // A VPN or administrator may have changed DNS since the legacy version applied it.
+                if (AiDns.MatchesServers(AiDns.StaticServers(id), AiDns.ServersOf(cfg)))
+                    AiDns.Restore(id, cfg.backup[id]);
                 cfg.backup.Remove(id);
             }
             catch (IOException)
             {
-                present ??= AiDns.Adapters().Select(x => x.id).ToHashSet();
-                if (present.Contains(id)) failed.Add(id); else cfg.backup.Remove(id);
+                failed.Add(id);
             }
         }
         return failed;
@@ -522,50 +556,85 @@ public sealed class Api
         return new { items };
     }
 
-    private object AiSave(JsonNode p, JsonNode al, JsonNode ids)
+    private object AiSave(JsonNode p, JsonNode al, JsonNode options)
     {
         var primary = AiServer(p); var alternate = AiServer(al);
         AiDns.Validate(primary, false, "предпочтительного DNS");
         AiDns.Validate(alternate, true, "дополнительного DNS");
-        var adapterIds = ids.AsArray().Select(x => x!.GetValue<string>()).ToList();
-        if (adapterIds.Count == 0) throw new ArgumentException("Включите хотя бы один сетевой адаптер");
-        var cfg = AiCfgGet();
-        cfg.primary = primary; cfg.alternate = alternate; cfg.adapters = adapterIds;
+        lock (_aiLock)
+        {
+        var cfg = AiDnsCatalog.Normalize(AiCfgGet());
+        if (cfg.backup.Count > 0) { AiInitialize(); cfg = AiCfgGet(); }
+        var previous = JsonSerializer.Deserialize<AiCfg>(JsonSerializer.Serialize(cfg, Json.Opts), Json.Opts)!;
+        cfg.primary = primary; cfg.alternate = alternate;
+        if (options is JsonValue value && value.TryGetValue<bool>(out bool auto)) cfg.autoSwitch = auto;
+        if (options is JsonObject)
+        {
+            cfg.selectionMode = options["selectionMode"]?.GetValue<string>() ?? cfg.selectionMode;
+            cfg.manualChatgpt = options["manualChatgpt"]?.GetValue<string>() ?? cfg.manualChatgpt;
+            cfg.manualGemini = options["manualGemini"]?.GetValue<string>() ?? cfg.manualGemini;
+            cfg.fallbackChatgpt = options["fallbackChatgpt"]?.GetValue<string>() ?? cfg.fallbackChatgpt;
+            cfg.fallbackGemini = options["fallbackGemini"]?.GetValue<string>() ?? cfg.fallbackGemini;
+            if (options["customServers"] is JsonArray custom) cfg.customServers = custom.Deserialize<List<AiDnsEntry>>(Json.Opts) ?? new();
+            cfg.autoSwitch = cfg.selectionMode == "auto";
+            AiDnsCatalog.Validate(cfg);
+        }
+        var servers = AiDns.Candidates(cfg);
         try
         {
             if (cfg.enabled)
             {
-                AiRestore(cfg, cfg.backup.Keys.Where(i => !adapterIds.Contains(i)));
-                AiDns.ApplyToSelected(cfg, adapterIds);
+                AiInitialize();
+                cfg.backup = AiCfgGet().backup;
+                previous.backup = new Dictionary<string, string>(cfg.backup);
+                Log.Info("AI DNS: перезапуск для применения сохранённых назначений");
+                _ai.Stop();
+                try { AiStart(cfg); }
+                catch
+                {
+                    if (!_ai.Running) { try { AiStart(previous); } catch (Exception e) { _aiError = e.Message; } }
+                    throw;
+                }
             }
+            cfg.mode = "split"; _aiError = "";
+            _s.Set("aidns", cfg);
         }
-        finally { _s.Set("aidns", cfg); }
+        catch { previous.enabled = _ai.Running; _s.Set("aidns", previous); throw; }
         return new { applied = cfg.enabled };
+        }
     }
 
     private object? AiToggle(bool on)
     {
-        var cfg = AiCfgGet();
+        lock (_aiLock)
+        {
+        P.Need("раздельный AI DNS");
+        AiInitialize();
+        var cfg = AiDnsCatalog.Normalize(AiCfgGet());
         if (on)
         {
-            var selected = cfg.adapters ?? AiDns.Adapters().Where(a => a.physical).Select(a => a.id).ToList();
-            if (selected.Count == 0) throw new ArgumentException("Включите хотя бы один сетевой адаптер");
-            cfg.adapters = selected;
             try
             {
-                AiDns.ApplyToSelected(cfg, selected);
+                if (!_ai.Running) AiStart(cfg);
                 cfg.enabled = true;
+                cfg.mode = "split"; _aiError = "";
+            }
+            catch (Exception e)
+            {
+                cfg.enabled = _ai.Running; _aiError = e.Message;
+                throw;
             }
             finally { _s.Set("aidns", cfg); }
-            Log.Info("AI DNS включён: " + string.Join(", ", AiDns.ServersOf(cfg).Select(s => s.address)));
+            Log.Info("AI DNS: включено раздельное разрешение ИИ-доменов, DNS адаптеров сохранён");
             return null;
         }
-        var failed = AiRestore(cfg, cfg.backup.Keys);
-        cfg.enabled = failed.Count > 0;
+        Log.Info("AI DNS: команда пользователя aidns_toggle(false)");
+        _ai.Stop();
+        cfg.enabled = false; _aiError = "";
         _s.Set("aidns", cfg);
-        if (failed.Count > 0) throw new InvalidOperationException("Не удалось вернуть DNS для части адаптеров");
-        Log.Info("AI DNS выключен, прежние DNS возвращены");
+        Log.Info("AI DNS выключен, правило ИИ-доменов удалено");
         return null;
+        }
     }
 
     private object AiCheck(JsonNode p, JsonNode al)
@@ -578,16 +647,32 @@ public sealed class Api
         return new { primary = pt.GetAwaiter().GetResult(), alternate = at?.GetAwaiter().GetResult() ?? new ProbeResult(1, "Дополнительный DNS не задан") };
     }
 
-    /// <summary>При запуске: держим настроенные DNS на месте (Windows или DHCP могли их сбросить).</summary>
+    private void AiInitialize()
+    {
+        if (_aiInitialized) return;
+        P.Need("раздельный AI DNS");
+        AiDnsPolicy.Remove(null);
+        var cfg = AiCfgGet();
+        if (cfg.backup.Count > 0)
+        {
+            var failed = AiRestore(cfg, cfg.backup.Keys);
+            _s.Set("aidns", cfg);
+            if (failed.Count > 0) throw new IOException("Не удалось восстановить DNS старой версии AI DNS");
+        }
+        _aiInitialized = true;
+    }
+
     public void AiReapply()
     {
         if (P.Sandbox) return;
-        var cfg = AiCfgGet();
-        if (!cfg.enabled || cfg.adapters is not { Count: > 0 }) return;
-        try { AiDns.ApplyToSelected(cfg, cfg.adapters); }
-        catch (IOException e) { Log.Warn("AI DNS: не удалось применить DNS: " + e.Message); }
-        finally { _s.Set("aidns", cfg); }
+        lock (_aiLock)
+        {
+            try { AiInitialize(); if (AiCfgGet().enabled && !_ai.Running) AiStart(AiDnsCatalog.Normalize(AiCfgGet())); _aiError = ""; }
+            catch (Exception e) { _aiError = e.Message; Log.Warn("AI DNS: " + e.Message); }
+        }
     }
+
+    public void AiStop() { AiCancel(); lock (_aiLock) { Log.Info("AI DNS: остановка при завершении приложения"); _ai.Stop(); } }
 
     // ---------- автоподбор ----------
 

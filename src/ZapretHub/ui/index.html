@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zapret Hub</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="aidns-panel.css">
 </head>
 <body>
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -169,33 +170,17 @@
 
     <!-- AI DNS -->
     <section class="page" id="page-aidns">
-      <div class="page-head">
-        <div>
-          <h1>AI DNS</h1>
-          <p>Свои DNS-серверы для доступа к ИИ-сервисам. Меняет DNS выбранных сетевых адаптеров, а при выключении возвращает прежние.</p>
-        </div>
-      </div>
-      <div class="card tg-hero ai" id="aiHero">
-        <span class="tg-logo"><i data-icon="bot"></i></span>
-        <div class="tg-hero-text">
-          <h2 id="aiTitle">AI DNS выключен</h2>
-          <p id="aiSub"></p>
-          <div class="ai-services" id="aiServices"></div>
-        </div>
-        <label class="switch big" title="Включить или выключить AI DNS"><input type="checkbox" id="aiSwitch"><span></span></label>
-      </div>
+      <div class="page-head"><div><h1>AI DNS</h1><p>Smart DNS для нейросетей. Корпоративные имена, 1С и печать используют DNS вашей сети.</p></div><span class="ai-label">РАЗДЕЛЬНЫЙ DNS</span></div>
+      <div class="card tg-hero ai" id="aiHero"><span class="tg-logo"><i data-icon="bot"></i></span><div class="tg-hero-text"><h2 id="aiTitle">AI DNS выключен</h2><p id="aiSub">Браузерные запросы не проверены</p><div class="ai-services" id="aiServices"></div></div><label class="switch big" title="Включить AI DNS"><input type="checkbox" id="aiSwitch"><span></span></label></div>
       <div class="notice hidden" id="aiNotice"><i data-icon="info"></i><span></span></div>
-      <div class="cards-2 mt" id="aiEditors"></div>
-      <div class="card mt">
-        <div class="card-head"><h3>Сетевые адаптеры</h3><span class="muted xs">По умолчанию — физические (Wi-Fi и Ethernet)</span></div>
-        <div class="ai-adapters" id="aiAdapters"><div class="empty">Загружаю список адаптеров…</div></div>
-      </div>
-      <div class="row-end ai-actions">
-        <button class="btn" data-act="ai-recommended"><i data-icon="sparkles"></i>Рекомендуемые</button>
-        <button class="btn" data-act="ai-check" id="aiCheckBtn"><i data-icon="activity"></i>Проверить серверы</button>
-        <button class="btn primary" data-act="ai-save"><i data-icon="check"></i>Сохранить и применить</button>
-      </div>
+      <div class="ai-route-grid mt" id="aiRouteCards"></div>
+      <div class="card mt" data-ai="primary"><div class="ai-row"><div><h3>Выбор маршрута</h3><p class="muted xs">Назначения ручного режима сохраняются при переходе в автоматический.</p></div><div class="seg" id="aiModes"><button data-act="ai-mode" data-mode="auto">Автоматически</button><button data-act="ai-mode" data-mode="manual">Вручную</button></div></div><div id="aiManual" class="ai-route-grid mt"></div><p class="muted xs mt-sm" id="aiModeHint"></p><div class="row-end mt-sm"><span class="muted xs" id="aiDirty"></span><button class="btn primary" data-act="ai-save"><i data-icon="check"></i>Сохранить выбор</button></div></div>
+      <div class="ai-row mt ai-catalog-head"><div><h2>Провайдеры</h2><p class="muted xs">DNS, TLS и HTTPS проверяются отдельно. Успешная проверка не доказывает работу чата.</p></div><div class="ai-row"><span class="muted xs" id="aiProgress"></span><button class="btn" data-act="ai-cancel" id="aiCancel">Отменить</button><button class="btn primary" data-act="ai-probe-all" id="aiProbeAll"><i data-icon="activity"></i>Проверить все DNS</button></div></div>
+      <div class="ai-provider-grid mt-sm" id="aiProviders"><div class="card muted">Загрузка провайдеров…</div></div>
+      <div class="card mt"><div class="ai-row"><h3>Собственный DNS</h3><button class="btn sm" data-act="ai-custom-new">Добавить DNS</button></div><div id="aiCustom" class="hidden"><div class="ai-custom-fields mt-sm"><label class="field"><span>Название</span><input id="aiCustomName" maxlength="80"></label><label class="field"><span>IPv4</span><input id="aiCustomIp" placeholder="203.0.113.10" spellcheck="false"></label><label class="field"><span>DoH URL</span><input id="aiCustomUrl" placeholder="https://dns.example/dns-query" spellcheck="false"></label></div><label class="ai-check-line"><input type="checkbox" id="aiCustomUdp"> Явно разрешить UDP fallback для этого DNS</label><div class="row-end"><button class="btn" data-act="ai-custom-close">Закрыть</button><button class="btn primary" data-act="ai-custom-store">Сохранить запись</button></div></div></div>
+      <details class="card mt ai-details" id="aiDetails"><summary>Диагностика маршрута <span class="muted xs">интерфейс · TCP/TLS · ответы DNS · события</span></summary><div id="aiNetwork" class="mt"></div><div id="aiDiagnosticRows" class="mt-sm"></div><div id="aiEvents" class="mt-sm"></div><div class="row-end mt-sm"><button class="btn" data-act="ai-report"><i data-icon="download"></i>Сохранить обезличенный отчёт</button></div><p class="muted xs mt-sm">В отчёт не включаются токены, cookies, имена интерфейсов, внутренние IP и настройки аккаунтов. Собственный Secure DNS браузера может обходить NRPT; нулевой счётчик также возможен из-за кэша.</p></details>
     </section>
+
 
     <!-- ФИЛЬТРЫ -->
     <section class="page" id="page-filters">
@@ -394,5 +379,6 @@
 
 <script src="icons.js"></script>
 <script src="app.js"></script>
+<script src="aidns-panel.js"></script>
 </body>
 </html>

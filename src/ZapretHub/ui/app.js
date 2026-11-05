@@ -130,7 +130,7 @@ function renderChrome() {
     || (S.tg.latest && S.tg.version && verNewer(S.tg.latest.version, S.tg.version));
   $('#updBadge').classList.toggle('hidden', !newer);
   $('#tgDot').classList.toggle('hidden', !S.tg.running);
-  $('#aiDot').classList.toggle('hidden', !S.aidns.enabled);
+  $('#aiDot').classList.toggle('hidden', !S.aidns.running);
   $('#appVer').textContent = S.app_version;
 }
 
@@ -170,7 +170,7 @@ function renderHome() {
   const gf = S.game_filter.mode;
   const tiles = [
     ['telegram', 'send', '#37bbfe', 'Telegram', S.tg.running ? 'Работает' : 'Выкл'],
-    ['aidns', 'bot', '#e879f9', 'AI DNS', S.aidns.enabled ? 'Включён' : 'Выкл'],
+    ['aidns', 'bot', '#e879f9', 'AI DNS', S.aidns.enabled ? (S.aidns.running ? 'Включён' : 'Ошибка') : 'Выкл'],
     ['filters', 'gamepad', '#f472b6', 'Game Filter', { disabled: 'Выкл', all: 'TCP + UDP', tcp: 'TCP', udp: 'UDP' }[gf]],
     ['filters', 'globe', '#22d3ee', 'IPSet', { none: 'Выкл', loaded: 'По списку', any: 'Все IP' }[S.ipset]],
   ];
@@ -404,13 +404,16 @@ const AI_EDITORS = [['primary', 'Предпочтительный DNS', 'Нап�
 
 function renderAiDns() {
   const ai = S.aidns, servers = [ai.primary, ai.alternate].filter(s => s.address).map(s => s.address).join(' + ');
-  $('#aiHero').classList.toggle('on', ai.enabled);
+  const routeError = (ai.active?.routes || []).filter(r => r.error).map(r => r.error).join(' · ');
+  const routes = (ai.active?.routes || []).filter(r => ['chatgpt.com', 'gemini.google.com'].includes(r.service)).map(r => `${r.service === 'chatgpt.com' ? 'ChatGPT' : 'Gemini'}: ${r.address}`).join(' · ');
+  const fallbackWarning = (ai.active?.routes || []).some(r => r.plaintextFallbackObserved) ? ' · использовался UDP fallback; выбор DNS-провайдера может зависеть от перехвата VPN' : '';
+  $('#aiHero').classList.toggle('on', ai.running);
   const sw = $('#aiSwitch');
   if (!aiSwitching) sw.checked = ai.enabled;
   sw.disabled = aiSwitching;
   sw.parentElement.classList.toggle('busy', aiSwitching);
-  $('#aiTitle').textContent = aiSwitching ? (sw.checked ? 'Применяю DNS…' : 'Возвращаю прежние DNS…') : ai.enabled ? 'ИИ-сервисы открыты' : 'AI DNS выключен';
-  $('#aiSub').textContent = ai.enabled ? `DNS ${servers}${ai.primary.doh ? ' · DNS по HTTPS' : ''}` : 'Включите, чтобы открыть ИИ-сервисы через свои DNS-серверы';
+  $('#aiTitle').textContent = aiSwitching ? (sw.checked ? 'Включаю DNS для ИИ…' : 'Выключаю DNS для ИИ…') : ai.enabled ? (ai.running ? 'AI DNS включён' : 'AI DNS не запущен') : 'AI DNS выключен';
+  $('#aiSub').textContent = ai.error || routeError || (ai.enabled && ai.active?.error) || (ai.running ? `${routes || 'Сервер ' + (ai.active?.address || servers)} · получено DNS-запросов: ${ai.active?.observedQueries || 0}${fallbackWarning} · доступ в приложениях НЕ ПРОВЕРЕН` : 'Раздельный DNS для ИИ-сервисов');
   $('#aiServices').innerHTML = ai.services.map(s => `<span>${esc(s)}</span>`).join('');
   const note = $('#aiNotice');
   note.classList.toggle('hidden', !ai.standalone);
@@ -453,24 +456,15 @@ function setAiCheck(key, r) {
   el.innerHTML = r ? `${icon(['check', 'alert', 'x'][r.level])}<span>${esc(r.text)}</span>` : `${icon('refresh', 'spin')}<span>Проверяю…</span>`;
 }
 
-const aiSelected = () => $$('#aiAdapters input:checked').map(i => i.value);
-
 async function loadAiDns() {
   $('#aiEditors').innerHTML = AI_EDITORS.map(aiEditor).join('');
   fillAi('primary', S.aidns.primary);
   fillAi('alternate', S.aidns.alternate);
-  const r = await call('aidns_adapters');
-  if (!r.ok) return;
-  $('#aiAdapters').innerHTML = r.items.length ? r.items.map(a => `<label class="ai-ad">
-      <span class="check"><input type="checkbox" value="${esc(a.id)}" ${a.selected ? 'checked' : ''}><span></span></span>
-      <span class="ad-txt"><b>${esc(a.name)}</b><small>${esc(a.description)}</small></span>
-      <code title="DNS на адаптере сейчас">${esc(a.current || 'автоматически')}</code>
-      <span class="kind ${a.physical ? 'phys' : ''}">${a.physical ? 'физический' : 'виртуальный'}</span></label>`).join('')
-    : '<div class="empty">Активных сетевых адаптеров не найдено</div>';
+  $('#aiAutoSwitch').checked = S.aidns.autoSwitch !== false;
 }
 
 async function aiSave() {
-  return call('aidns_save', readAi('primary'), readAi('alternate'), aiSelected());
+  return call('aidns_save', readAi('primary'), readAi('alternate'), $('#aiAutoSwitch').checked);
 }
 
 async function copyText(text) {
@@ -692,7 +686,14 @@ const actions = {
     if (!r.ok) return;
     fillAi('primary', r.primary);
     fillAi('alternate', r.alternate);
-    toast('Подставлены рекомендуемые настройки (WebShift + GeoHide). Нажмите «Сохранить и применить»', 'info');
+    toast('Подставлены настройки WebShift + GeoHide. Проверьте серверы и сохраните настройки', 'info');
+  },
+  async 'ai-dnsai'() {
+    const r = await call('aidns_dnsai');
+    if (!r.ok) return;
+    fillAi('primary', r.primary);
+    fillAi('alternate', r.alternate);
+    toast('Подставлены серверы DNS-AI. Проверьте серверы и сохраните настройки', 'info');
   },
   async 'ai-check'(btn) {
     setAiCheck('primary', null);
@@ -815,7 +816,7 @@ document.addEventListener('change', async e => {
     if (on && $('[data-ai="primary"]')) r = await aiSave();  // как в AI DNS: включаем то, что сейчас в форме
     if (r.ok) r = await call('aidns_toggle', on);
     aiSwitching = false;
-    if (r.ok) toast(on ? 'AI DNS включён — ИИ-сервисы открываются через свои DNS' : 'AI DNS выключен, прежние DNS возвращены', on ? 'ok' : 'info');
+    if (r.ok) toast(on ? 'Раздельный AI DNS включён' : 'AI DNS выключен, правило ИИ-доменов удалено', on ? 'ok' : 'info');
     await refresh();
     if (page === 'aidns') loadAiDns();
     return;

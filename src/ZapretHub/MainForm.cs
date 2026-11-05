@@ -221,6 +221,7 @@ public sealed class MainForm : Form, IWindow
                 _api.TgStop();
             }
             catch { }
+            try { _api.AiStop(); } catch (Exception e) { Log.Warn("AI DNS при выходе: " + e.Message); }
             BeginInvoke(() =>
             {
                 _tray.Visible = false;
@@ -391,12 +392,33 @@ public sealed class MainForm : Form, IWindow
         try
         {
             await Task.Delay(3000);
-            foreach (var page in new[] { "home", "strategies", "telegram", "aidns", "filters", "lists", "diag", "updates", "settings" })
+            bool aiOnly = Environment.GetEnvironmentVariable("ZAPRETHUB_AI_PANEL_TEST") == "1";
+            foreach (var page in aiOnly ? new[] { "aidns" } : new[] { "home", "strategies", "telegram", "aidns", "filters", "lists", "diag", "updates", "settings" })
             {
                 await core.ExecuteScriptAsync($"go('{page}')");
                 await Task.Delay(1500);
                 using var fs = File.Create(Path.Combine(dir, page + ".png"));
                 await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, fs);
+            }
+            if (aiOnly)
+            {
+                report.Add("providers: " + await core.ExecuteScriptAsync("document.querySelectorAll('[data-provider]').length"));
+                await core.ExecuteScriptAsync("actions['ai-mode']({dataset:{mode:'manual'}})");
+                report.Add("manual selectors: " + await core.ExecuteScriptAsync("document.querySelectorAll('[data-ai-setting]').length"));
+                using (var fs=File.Create(Path.Combine(dir,"aidns-manual.png"))) await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,fs);
+                await core.ExecuteScriptAsync("actions['ai-custom-new']()");
+                report.Add("custom editor visible: " + await core.ExecuteScriptAsync("!document.getElementById('aiCustom').classList.contains('hidden')"));
+                await core.ExecuteScriptAsync("actions['ai-custom-close']()");
+                await core.ExecuteScriptAsync("""
+                    (()=>{let p=structuredClone(window.aiPanelTest.get().panel);p.cfg.selectionMode='auto';p.probes.results=p.entries.slice(0,3).map((e,i)=>{let s=e.servers[0];return {key:[s.address,s.template,s.doh?'True':'False',s.fallback?'True':'False'].join('|'),address:s.address,service:'chatgpt.com',network:p.probes.network,stage:i?'HTTPS TLS':'DoH HTTP',kind:i?'timeout':'http',target:s.address+':443',dns:i>0,dnsMs:87,ipv4:i?[s.address]:[],ipv6:[],https:false,httpVersion:'HTTP/2.0',smart:'Тип ответа не установлен',error:i?'Тайм-аут HTTPS TLS к полученному proxy IP (тестовый пример)':'HTTP 400 (тестовый пример)',checkedAt:new Date().toISOString()};});window.aiPanelTest.set(p);document.getElementById('aiProviders').scrollIntoView({behavior:'instant'});})()
+                    """);
+                await Task.Delay(250);
+                using(var fs=File.Create(Path.Combine(dir,"aidns-providers.png"))) await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,fs);
+                await core.ExecuteScriptAsync("document.getElementById('aiDetails').open=true;document.getElementById('aiDetails').scrollIntoView({behavior:'instant'})");
+                using(var fs=File.Create(Path.Combine(dir,"aidns-diagnostics.png"))) await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,fs);
+                report.Add("horizontal overflow: " + await core.ExecuteScriptAsync("document.getElementById('main').scrollWidth>document.getElementById('main').clientWidth"));
+                report.Add("errors: " + await core.ExecuteScriptAsync("JSON.stringify(window.__errs)"));
+                File.WriteAllLines(Path.Combine(dir,"report.txt"),report);Quit();return;
             }
             // окно исключения Защитника: реальное состояние (в тесте без прав администратора) и имитация «широкое исключение уже есть»
             await core.ExecuteScriptAsync("go('diag')");

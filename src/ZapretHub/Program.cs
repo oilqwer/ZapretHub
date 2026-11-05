@@ -10,6 +10,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--aidns-watchdog") return AiDnsPolicy.Watchdog(args);
+        if (args.Length == 3 && args[0] == "--aidns-diagnose" && P.Sandbox) return AiDnsDiagnostic.Run(args[1], args[2]);
+        if (args.Length == 2 && args[0] == "--aidns-paneldiag" && P.Sandbox) return AiDnsMonitor.Diagnose(args[1]);
+        if (args.Length == 3 && args[0] == "--aidns-targetdiag" && P.Sandbox) return AiTargetDiagnostics.Run(args[1],args[2]);
+        if (args.Length == 2 && args[0] == "--aidns-lifecycletest" && P.Sandbox) return AiDnsTests.RunLifecycle(args[1]);
+        if (args.Length == 4 && args[0] == "--aidns-testserver" && P.Sandbox) return AiDnsTests.Serve(args[1], args[2], args[3]);
         string? selfTest = null;
         for (int i = 0; i < args.Length - 1; i++) if (args[i] == "--selftest") selfTest = args[i + 1];
 
@@ -46,6 +52,7 @@ internal static class Program
             if (args[i] == "--updatetest" && P.Sandbox) return SelfTest.UpdateTest(args[i + 1]);
             if (args[i] == "--nettest" && P.Sandbox) return SelfTest.NetTest(args[i + 1]);
             if (args[i] == "--defendertest" && P.Sandbox) return SelfTest.DefenderTest(args[i + 1]);
+            if (args[i] == "--aidnstest" && P.Sandbox) return AiDnsTests.Run(args[i + 1]);
         }
 
         if (selfTest is null && !P.Sandbox && !Sys.IsAdmin())
